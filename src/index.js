@@ -1,23 +1,11 @@
-import {privateConfig} from '../private/config.js';
-import client from './bots/client/Client.js';
-import admin from './bots/admin/Admin.js';
+import { privateConfig } from '../private/config.js';
+import client from './bots/client/index.js';
+import admin from './bots/admin/index.js';
 
-function main(config) {
-  client(config)
-    .then(bot => {
-      bot.start();
-    })
-    .catch(err => {
-      console.log('client error', err);
-    });
-
-  admin(config)
-    .then(bot => {
-      bot.start();
-    })
-    .catch(err => {
-      console.log('admin error', err)
-    })
+async function main(config) {
+  const clientBot = await client(config)
+  const adminBot = await admin(config)
+  clientBot.start()
+  adminBot.start()
 }
-
 main(privateConfig);

@@ -1,3 +1,6 @@
+/**
+ * @param msg {object}
+ */
 export default function (msg) {
   return {
     greeting: `Hello, ${msg.from.first_name}.\n`

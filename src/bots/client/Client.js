@@ -1,62 +1,42 @@
-import Telebot from 'telebot';
 import messages from './messages.js';
-import pkg from 'lodash';
 import WebSocket from 'ws';
+import Bot from '../../Bot.js';
 
-/**
- * @param client_bot {object}
- * @return {Promise<unknown>}
- */
-export default function client({client_bot}) {
-  return new Promise((resolve, reject) => {
-    try {
-      const clientBot = new Client(client_bot);
-      if (pkg.isEmpty(clientBot)) {
-        throw new Error('ClientBot: Not implemented');
-      } else {
-        resolve(clientBot);
-      }
-
-    } catch (e) {
-      reject(e);
-    }
-  });
-}
-
-class Client {
+export default class Client extends Bot {
   /**
    * @param client_bot {object}
+   * @param fullAddress {string}
    */
-  constructor(client_bot) {
-    this.token = client_bot.token;
-    this.messages = messages;
-    this.bot = new Telebot(this.token);
+  constructor(client_bot, {fullAddress}) {
+    super('Client', client_bot.token)
+    this.#openWebsocket(fullAddress, super.getBot(), messages);
   }
 
   start() {
-    this.#websocket();
+    super.getBot().start();
+  }
+
+  /**
+   * @param wsAddress {string}
+   * @param bot {object}
+   * @param messages {function}
+   */
+  #openWebsocket(wsAddress, bot, messages) {
+    this.ws = new WebSocket(wsAddress);
     this.ws.on('open', () => {
-      console.log('connected')
-      this.#onEvent();
+      super.botLog('Client side websocket connection: success!');
+      this.#onEvent(bot, this.ws, messages);
     })
-    this.bot.start();
   }
 
-  #websocket() {
-    this.ws = new WebSocket('ws://localhost:1201');
+  /**
+   * @param bot {object}
+   * @param ws {object}
+   * @param messages {function}
+   */
+  #onEvent(bot, ws, messages) {
+    bot.on('/start', msg => bot.sendMessage(msg.from.id, messages(msg).greeting));
+    bot.on('/help', msg => bot.sendMessage(msg.from.id, messages(msg).help));
+    bot.on('text', msg => ws.send(JSON.stringify(msg)));
   }
-
-  #onEvent() {
-    this.bot.on('/start', msg => this.bot.sendMessage(msg.from.id, this.messages(msg).greeting));
-
-    this.bot.on('/help', msg => this.bot.sendMessage(msg.from.id, this.messages(msg).help));
-
-    this.bot.on('text', msg => this.ws.send(JSON.stringify(msg)))
-
-    // this.bot.on('message', msg =>
-  }
-
-  // #resendToAdmin(msg) {
-  //   this.bot.sendMessage(msg.)
-  // }
 }
