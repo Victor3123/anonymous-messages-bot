@@ -1,73 +1,76 @@
-import Telebot from 'telebot';
-import pkg from 'lodash';
-import WebSocket, {WebSocketServer} from 'ws';
-import axios from 'axios';
+import {WebSocketServer} from 'ws';
+import messages from './messages.js';
+import Bot from '../../Bot.js';
 
-const _ = pkg
-
-/**
- * @param admin_bot{object}
- * @param super_users{string[]}
- * @param admin_chats{object[]}
- * @return {Promise<unknown>}
- */
-export default function admin({admin_bot, super_users, admin_chats}) {
-  return new Promise((resolve, reject) => {
-    try {
-      const adminBot = new Admin(admin_bot, super_users, admin_chats);
-      if (_.isEmpty(adminBot)) {
-        throw new Error('AdminBot: Not implemented');
-      } else {
-        resolve(adminBot);
-      }
-
-    } catch (e) {
-      reject(e);
-    }
-  })
-}
-
-class Admin {
+export default class Admin extends Bot {
   /**
    * @param admin_bot {object}
    * @param superUsers {string[]}
    * @param adminChats {object[]}
    */
   constructor(admin_bot, superUsers, adminChats) {
-    this.token = admin_bot.token;
-    this.bot = new Telebot(this.token)
+    super('Admin', admin_bot.token)
     this.adminChats = adminChats
+    this.#openSocket(super.getBot(), messages)
+    this.#onEvents(super.getBot())
   }
 
-  start() {
-    this.#openSocket()
-    this.#onEvents()
-    this.bot.start()
+  /**
+   * @return {undefined}
+   */
+  async start() {
+    super.getBot().start()
   }
 
-  // TODO: remove 'govnokod'
-  #openSocket() {
-    const bot = this.bot
-    const chats = this.adminChats
-    this.wss = new WebSocketServer({port: 1201})
-    this.wss.on('connection', function connection(ws) {
-      ws.on('message', data => {
-        chats.map((chat) => {
-          if (chat.isSuperChat) {
-            bot.sendMessage(chat.id, `Message:\n${JSON.parse(data).text}\nUsername:@${JSON.parse(data).from.username}`);
-          } else {
-            if (JSON.parse(data).text[0] !== '/') {
-              bot.sendMessage(chat.id, `Message:\n${JSON.parse(data).text}`);
-            }
-          }
+  /**
+   * @param bot {object}
+   * @param messages {function}
+   * @return {Promise<void>}
+   */
+  async #openSocket(bot, messages) {
+    const ws = await this.#createWSS(1203)
+    ws.on('message', data => this.#messageHandler(bot, data, messages));
+  }
+
+  /**
+   * @param bot {object}
+   */
+  #onEvents(bot) {
+    bot.on('/getChatId', msg => bot.sendMessage(msg.chat.id, `This chat id is: ${msg.chat.id}`));
+    bot.on('message', msg => console.log(msg.chat.id));
+  }
+
+  /**
+   * @param port {number}
+   * @return {Promise<unknown>}
+   */
+  #createWSS(port) {
+    return new Promise((resolve, reject) => {
+      try {
+        const wss = new WebSocketServer({port: port})
+        super.botLog('Admin side websocket creating: success!');
+        wss.on('connection', ws => {
+          resolve(ws);
+          super.botLog('Admin side websocket connection: success!');
         })
-      });
-    });
+      } catch (e) {
+        reject(e)
+      }
+    })
   }
 
-  #onEvents() {
-    this.bot.on('/start', msg => console.log(msg.chat.id))
-
-    this.bot.on('message', msg => console.log(msg.chat.id))
+  /**
+   * @param bot {object}
+   * @param data {string}
+   * @param messages {function}
+   */
+  #messageHandler(bot, data, messages) {
+    this.adminChats.map((chat) => {
+      if (chat.isSuperChat) {
+        bot.sendMessage(chat.id, messages(JSON.parse(data)).superChatMessage);
+      } else if (JSON.parse(data).text[0] !== '/') {
+        bot.sendMessage(chat.id, messages(JSON.parse(data)).defaultChatMessage);
+      }
+    })
   }
 }
